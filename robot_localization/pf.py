@@ -14,9 +14,10 @@ from geometry_msgs.msg import PoseWithCovarianceStamped, Pose, Point, Quaternion
 from rclpy.duration import Duration
 import math
 import time
+import random
 import numpy as np
 from occupancy_field import OccupancyField
-from helper_functions import TFHelper
+from helper_functions import TFHelper, draw_random_sample
 from rclpy.qos import qos_profile_sensor_data
 from angle_helpers import quaternion_from_euler
 
@@ -186,7 +187,17 @@ class ParticleFilter(Node):
 
         # TODO: assign the latest pose into self.robot_pose as a geometry_msgs.Pose object
         # just to get started we will fix the robot's pose to always be at the origin
-        self.robot_pose = Pose()
+
+        # Simple mean Pose
+        x,y,theta = 0
+        for particle in self.particle_cloud:
+            x+=particle.w*particle.x
+            y+=particle.w*particle.y
+            theta+=particle.w*particle.theta
+        q = quaternion_from_euler(0, 0, theta)
+        self.robot_pose = Pose(position=Point(x=x, y=y, z=0.0),
+                    orientation=Quaternion(x=q[0], y=q[1], z=q[2], w=q[3]))
+        
         if hasattr(self, 'odom_pose'):
             self.transform_helper.fix_map_to_odom_transform(self.robot_pose,
                                                             self.odom_pose)
@@ -199,6 +210,7 @@ class ParticleFilter(Node):
             that indicates the change in position and angle between the odometry
             when the particles were last updated and the current odometry.
         """
+        delta = (0,0,0)
         new_odom_xy_theta = self.transform_helper.convert_pose_to_xy_and_theta(self.odom_pose)
         # compute the change in x,y,theta since our last update
         if self.current_odom_xy_theta:
@@ -214,6 +226,13 @@ class ParticleFilter(Node):
 
         # TODO: modify particles using delta
 
+        # Apply delta to all particles
+        for particle in self.particle_cloud:
+            particle.x += delta[0]
+            particle.y += delta[1]
+            particle.theta += delta[2]
+
+
     def resample_particles(self):
         """ Resample the particles according to the new particle weights.
             The weights stored with each particle should define the probability that a particular
@@ -224,13 +243,24 @@ class ParticleFilter(Node):
         self.normalize_particles()
         # TODO: fill out the rest of the implementation
 
+        # Resample all the particles
+        proportion = round(self.n_particles)
+        self.particle_cloud = draw_random_sample(self.particle_cloud, [p.w for p in self.particle_cloud], proportion)
+        for _ in range(self.n_particles-proportion):
+            self.particle_cloud.append(self.random_particle())
+
     def update_particles_with_laser(self, r, theta):
         """ Updates the particle weights in response to the scan data
             r: the distance readings to obstacles
             theta: the angle relative to the robot frame for each corresponding reading 
         """
         # TODO: implement this
-        pass
+        
+        # Weight based on distance to closest obstacle
+        RESOLUTION = 0.03 # got it from the map YAML
+        for p in self.particle_cloud:
+            p.w = 1/max(0.05,min(r)/RESOLUTION-self.occupancy_field.get_closest_obstacle_distance(p.x, p.y))
+
 
     def update_initial_pose(self, msg):
         """ Callback function to handle re-initializing the particle filter based on a pose estimate.
@@ -248,13 +278,32 @@ class ParticleFilter(Node):
         self.particle_cloud = []
         # TODO create particles
 
+        # Add particles in the bounding box of the map
+        for _ in range(self.n_particles):
+            self.particle_cloud.append(self.random_particle())
+
         self.normalize_particles()
         self.update_robot_pose()
+
+    def random_particle(self):
+        """ Returns a randomly initialized particle within the map. """
+        # Add particles in the bounding box of the map
+        ((lx,ux),(ly,uy))=self.occupancy_field.get_obstacle_bounding_box()
+        width = ux-lx
+        height = uy-ly
+        x = width*random.random()+lx
+        y = height*random.random()+ly
+        theta = 2*math.pi*random.random()
+        return Particle(x,y,theta)
 
     def normalize_particles(self):
         """ Make sure the particle weights define a valid distribution (i.e. sum to 1.0) """
         # TODO: implement this
-        pass
+        
+        # Divide by the total weight of the particles
+        total = sum([p.w for p in self.particle_cloud])
+        for p in self.particle_cloud:
+            p.w/=total
 
     def publish_particles(self, timestamp):
         msg = ParticleCloud()

@@ -161,14 +161,15 @@ class ParticleFilter(Node):
         elif not self.particle_cloud:
             # now that we have all of the necessary transforms we can update the particle cloud
             self.initialize_particle_cloud(msg.header.stamp)
-        elif self.moved_far_enough_to_update(new_odom_xy_theta):
+        elif self.moved_far_enough_to_update(new_odom_xy_theta):                                               #THIS IS THE ACTUAL PARTICLE FILTER LOOP
             # we have moved far enough to do an update!
-            self.update_particles_with_odom()    # update based on odometry
-            self.update_particles_with_laser(r, theta)   # update based on laser scan
-            self.update_robot_pose()                # update robot's pose based on particles
-            self.resample_particles()               # resample particles to focus on areas of high density
+            self.update_particles_with_odom()    # update based on odometry                                     PREDICT
+            self.update_particles_with_laser(r, theta)   # update based on laser scan                           CORRECT
+            self.update_robot_pose()                # update robot's pose based on particles                    UPDATE BEL(X)
+            self.resample_particles()               # resample particles to focus on areas of high density      INITIALIZE
         # publish particles (so things like rviz can see them)
         self.publish_particles(msg.header.stamp)
+        print(str(len(self.particle_cloud)) + "particles exist.")
 
     def moved_far_enough_to_update(self, new_odom_xy_theta):
         return math.fabs(new_odom_xy_theta[0] - self.current_odom_xy_theta[0]) > self.d_thresh or \
@@ -189,7 +190,9 @@ class ParticleFilter(Node):
         # just to get started we will fix the robot's pose to always be at the origin
 
         # Simple mean Pose
-        x,y,theta = 0
+        x=0
+        y=0
+        theta = 0
         for particle in self.particle_cloud:
             x+=particle.w*particle.x
             y+=particle.w*particle.y
@@ -319,6 +322,7 @@ class ParticleFilter(Node):
         # self.scan_to_process is set to None in the run_loop 
         if self.scan_to_process is None:
             self.scan_to_process = msg
+            
 
 def main(args=None):
     rclpy.init()

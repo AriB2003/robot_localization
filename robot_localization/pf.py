@@ -47,6 +47,9 @@ class Particle(object):
         return Pose(position=Point(x=self.x, y=self.y, z=0.0),
                     orientation=Quaternion(x=q[0], y=q[1], z=q[2], w=q[3]))
 
+    def __str__(self):
+        return f"{round(self.x,2)},{round(self.y,2)},{round(self.theta,2)};{round(self.w,2)}"
+
     # TODO: define additional helper functions if needed
 
 class ParticleFilter(Node):
@@ -79,8 +82,8 @@ class ParticleFilter(Node):
 
         self.n_particles = 300          # the number of particles to use
 
-        self.d_thresh = 0.2             # the amount of linear movement before performing an update
-        self.a_thresh = math.pi/6       # the amount of angular movement before performing an update
+        self.d_thresh = 0.05             # the amount of linear movement before performing an update
+        self.a_thresh = math.pi/12       # the amount of angular movement before performing an update
 
         # TODO: define additional constants if needed
 
@@ -169,7 +172,9 @@ class ParticleFilter(Node):
             self.resample_particles()               # resample particles to focus on areas of high density      INITIALIZE
         # publish particles (so things like rviz can see them)
         self.publish_particles(msg.header.stamp)
-        print(str(len(self.particle_cloud)) + "particles exist.")
+        # print(str(len(self.particle_cloud)) + " particles exist.")
+        # for p in self.particle_cloud:
+        #     print(p)
 
     def moved_far_enough_to_update(self, new_odom_xy_theta):
         return math.fabs(new_odom_xy_theta[0] - self.current_odom_xy_theta[0]) > self.d_thresh or \
@@ -190,18 +195,31 @@ class ParticleFilter(Node):
         # just to get started we will fix the robot's pose to always be at the origin
 
         # Simple mean Pose
+        # x=0
+        # y=0
+        # theta = 0
+        # for particle in self.particle_cloud:
+        #     x+=particle.w*particle.x
+        #     y+=particle.w*particle.y
+        #     theta+=particle.w*particle.theta
+        
+        # Simple max weight Pose
         x=0
         y=0
         theta = 0
+        w = 0
         for particle in self.particle_cloud:
-            x+=particle.w*particle.x
-            y+=particle.w*particle.y
-            theta+=particle.w*particle.theta
+            if particle.w>w:
+                x=particle.x
+                y=particle.y
+                theta=particle.theta
         q = quaternion_from_euler(0, 0, theta)
         self.robot_pose = Pose(position=Point(x=x, y=y, z=0.0),
                     orientation=Quaternion(x=q[0], y=q[1], z=q[2], w=q[3]))
         
         if hasattr(self, 'odom_pose'):
+            # print("update pose")
+            # print(self.robot_pose)
             self.transform_helper.fix_map_to_odom_transform(self.robot_pose,
                                                             self.odom_pose)
         else:
@@ -252,6 +270,17 @@ class ParticleFilter(Node):
         for _ in range(self.n_particles-proportion):
             self.particle_cloud.append(self.random_particle())
 
+        # Add random noise
+        linear_noise = 0.2
+        angular_noise = 0.1
+        for p in self.particle_cloud:
+            p.x += 2*linear_noise*(random.random()-0.5)
+            p.y += 2*linear_noise*(random.random()-0.5)
+            p.theta += 2*angular_noise*(random.random()-0.5)
+            ((lx,ux),(ly,uy))=self.occupancy_field.get_obstacle_bounding_box()
+            p.x = max(lx,min(ux, p.x))
+            p.y = max(ly,min(uy, p.y))
+
     def update_particles_with_laser(self, r, theta):
         """ Updates the particle weights in response to the scan data
             r: the distance readings to obstacles
@@ -260,9 +289,17 @@ class ParticleFilter(Node):
         # TODO: implement this
         
         # Weight based on distance to closest obstacle
-        RESOLUTION = 0.03 # got it from the map YAML
+        # for p in self.particle_cloud:
+        #     p.w = 1/max(0.05,min(r)/self.occupancy_field.map.info.resolution-self.occupancy_field.get_closest_obstacle_distance(p.x, p.y))
         for p in self.particle_cloud:
-            p.w = 1/max(0.05,min(r)/RESOLUTION-self.occupancy_field.get_closest_obstacle_distance(p.x, p.y))
+            total_deviation = 0
+            for ri, ti in zip(r,theta):
+                if(math.isfinite(ri)):
+                    ang = p.theta+ti
+                    total_deviation+=self.occupancy_field.get_closest_obstacle_distance(p.x+ri*math.cos(ang), p.y+ri*math.sin(ang))
+            p.w = 1/min(1,total_deviation)
+
+
 
 
     def update_initial_pose(self, msg):

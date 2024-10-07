@@ -204,15 +204,21 @@ class ParticleFilter(Node):
         #     theta+=particle.w*particle.theta
         
         # Simple max weight Pose
+        self.particle_cloud.sort(key=lambda x:x.w, reverse=True)
         x=0
         y=0
         theta = 0
-        w = 0
-        for particle in self.particle_cloud:
-            if particle.w>w:
-                x=particle.x
-                y=particle.y
-                theta=particle.theta
+        thresh = round(0.1*self.n_particles)
+        counter = 0
+        for particle in self.particle_cloud[:thresh]:
+            x+=particle.x
+            y+=particle.y
+            theta+=particle.theta
+            counter+=1
+        x/=counter
+        y/=counter
+        theta/=counter
+        print(f"Significant Particles: {counter}")
         q = quaternion_from_euler(0, 0, theta)
         self.robot_pose = Pose(position=Point(x=x, y=y, z=0.0),
                     orientation=Quaternion(x=q[0], y=q[1], z=q[2], w=q[3]))
@@ -265,7 +271,8 @@ class ParticleFilter(Node):
         # TODO: fill out the rest of the implementation
 
         # Resample all the particles
-        proportion = round(self.n_particles)
+        thetas = [p.theta for p in self.particle_cloud]
+        proportion = round(0.6*self.n_particles)
         self.particle_cloud = draw_random_sample(self.particle_cloud, [p.w for p in self.particle_cloud], proportion)
         for _ in range(self.n_particles-proportion):
             self.particle_cloud.append(self.random_particle())
@@ -273,9 +280,10 @@ class ParticleFilter(Node):
         # Add random noise
         linear_noise = 0.2
         angular_noise = 0.1
-        for p in self.particle_cloud:
+        for p,t in zip(self.particle_cloud, thetas):
             p.x += 2*linear_noise*(random.random()-0.5)
             p.y += 2*linear_noise*(random.random()-0.5)
+            # p.theta = t+2*angular_noise*(random.random()-0.5)
             p.theta += 2*angular_noise*(random.random()-0.5)
             ((lx,ux),(ly,uy))=self.occupancy_field.get_obstacle_bounding_box()
             p.x = max(lx,min(ux, p.x))
@@ -293,11 +301,16 @@ class ParticleFilter(Node):
         #     p.w = 1/max(0.05,min(r)/self.occupancy_field.map.info.resolution-self.occupancy_field.get_closest_obstacle_distance(p.x, p.y))
         for p in self.particle_cloud:
             total_deviation = 0
+            counter = 0
             for ri, ti in zip(r,theta):
                 if(math.isfinite(ri)):
                     ang = p.theta+ti
-                    total_deviation+=self.occupancy_field.get_closest_obstacle_distance(p.x+ri*math.cos(ang), p.y+ri*math.sin(ang))
-            p.w = 1/min(1,total_deviation)
+                    closest = self.occupancy_field.get_closest_obstacle_distance(p.x+ri*math.cos(ang), p.y+ri*math.sin(ang))
+                    if(math.isfinite(closest)):
+                        total_deviation+=closest
+                        counter+=1
+            p.w = 1/min(1000,total_deviation/(counter**2))
+            # print(f"{round(total_deviation,2)},{round(p.w,2)}")
 
 
 

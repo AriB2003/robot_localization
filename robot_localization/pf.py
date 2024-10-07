@@ -208,7 +208,7 @@ class ParticleFilter(Node):
         x=0
         y=0
         theta = 0
-        thresh = round(0.1*self.n_particles)
+        thresh = round(0.03*self.n_particles)
         counter = 0
         for particle in self.particle_cloud[:thresh]:
             x+=particle.x
@@ -218,7 +218,7 @@ class ParticleFilter(Node):
         x/=counter
         y/=counter
         theta/=counter
-        print(f"Significant Particles: {counter}")
+        # print(f"Significant Particles: {counter}")
         q = quaternion_from_euler(0, 0, theta)
         self.robot_pose = Pose(position=Point(x=x, y=y, z=0.0),
                     orientation=Quaternion(x=q[0], y=q[1], z=q[2], w=q[3]))
@@ -278,7 +278,7 @@ class ParticleFilter(Node):
             self.particle_cloud.append(self.random_particle())
 
         # Add random noise
-        linear_noise = 0.2
+        linear_noise = 0.5
         angular_noise = 0.1
         for p,t in zip(self.particle_cloud, thetas):
             p.x += 2*linear_noise*(random.random()-0.5)
@@ -309,7 +309,7 @@ class ParticleFilter(Node):
                     if(math.isfinite(closest)):
                         total_deviation+=closest
                         counter+=1
-            p.w = 1/min(1000,total_deviation/(counter**2))
+            p.w = 1/(min(1000,total_deviation/(counter**2))**2)
             # print(f"{round(total_deviation,2)},{round(p.w,2)}")
 
 

@@ -326,9 +326,12 @@ class ParticleFilter(Node):
         ((lx,ux),(ly,uy))=self.occupancy_field.get_obstacle_bounding_box()
         width = ux-lx
         height = uy-ly
-        x = width*random.random()+lx
-        y = height*random.random()+ly
-        theta = 2*math.pi*random.random()
+        while True:
+            x = width*random.random()+lx
+            y = height*random.random()+ly
+            theta = 2*math.pi*random.random()
+            if math.isfinite(self.occupancy_field.get_closest_obstacle_distance(x,y)):
+                break
         return Particle(x,y,theta)
 
     def normalize_particles(self):

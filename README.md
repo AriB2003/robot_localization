@@ -82,7 +82,7 @@ The largest decision we made in this project was performing our resampling with 
 
 **What if any challenges did you face along the way?**
 
-The biggest challenge that we faced was trying to weigh the laser scans properly because it required understanding the occupancy grid and how to appropriately apply the algorithm. Even when we had the correct algorithm, it was hard to deduce this because as we discovered, the way weights were calculated and the amount of random noise on the resampling greatly affected the results. We first got it working by setting the weighting to almost all-or-nothing where only the closest one or two particles were actually close enough, which proved desirable behavior.
+The biggest challenge that we faced was trying to weigh the laser scans properly because it required understanding the occupancy grid and how to appropriately apply the algorithm. Even when we had the correct algorithm, it was hard to deduce this because as we discovered, the way weights were calculated and the amount of random noise on the resampling greatly affected the results. We first got it working by setting the weighting to almost all-or-nothing where only the closest one or two particles were actually weighted highly, which proved desirable behavior in their convergence.
 
 **What would you do to improve your project if you had more time?**
 
@@ -90,6 +90,6 @@ One thing we would do to improve our project would be to implement the algorithm
 
 **Did you learn any interesting lessons for future robotic programming projects? These could relate to working on robotics projects in teams, working on more open-ended (and longer term) problems, or any other relevant topic.**
 
-One important lesson we learned was the importance of cross-referencing and double-checking that commands are implemented correctly. One of our team members spent the better part of a week trying to troubleshoot a problem that occurred only because he forgot to include “--clock” at the end of a bash command when running the particle filter. While the other member didn’t bother checking the command since he thought that Ctrl+C and Ctrl+V are not that deep.
+One important lesson we learned was the importance of cross-referencing and double-checking that commands are implemented correctly. One of our team members spent the better part of a week trying to troubleshoot a problem that occurred only because he forgot to include “--clock” at the end of a bash command when running the particle filter. The other member didn’t bother checking the command since he thought that Ctrl+C and Ctrl+V are not possible to do incorrectly.
 
 Another lesson we learned was that at the very end we realized that the odometry update we created had led to the backwards-driving convergence since we hadn’t transformed the odometry update to the particle reference frame. However, given that it was already in the map frame this transformation would not have worked anyway. We accidentally implemented the right thing without understanding why. We saw that the particles moved in the expected directions, but did not consider that them moving like that was an abstraction from the robot frame. This probably could have been avoided through a more thorough understanding of the original codebase before jumping into the project.

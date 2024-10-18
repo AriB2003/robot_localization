@@ -53,7 +53,7 @@ In order to do this, we first threw out all non-finite data points from our lase
 
 
 
-<img src="images/Latex_Equation.png" alt="" height="550"/>
+<img src="images/Latex_Equation.png" alt="" height="100"/>
 
 
 This division by the number of points was necessary to prevent the particles from inherently preferring the edges of the map in order to minimize cost (which would place most laser scan data points off the map and lead to a lower error total). Squaring points to further incentivize positions with more visible data further helped and then squaring the denominator made the total weighting more skewed towards particles that match very well. This allowed us to push the resampling percentage much lower and increase stochastic exploration, leading to faster average conversion.
